@@ -3,12 +3,19 @@ require 'csv'
 class EventImportService
   def initialize(file)
     @file = file
+    @events = []
+    @invitations = []
   end
 
   def import
-    events = []
-    invitations = []
+    store_events_and_invites_from_csv
+    update_rsvp_for_overlapping_events
+    Event.import @events, recursive: true
+  end
 
+  private
+
+  def store_events_and_invites_from_csv
     CSV.open( @file, headers: true ).each do |row|
       row = row.to_h
       event = Event.new(row.except("users#rsvp"))
@@ -17,12 +24,14 @@ class EventImportService
       if row['users#rsvp'].present?
         row['users#rsvp'].split(';').each {|u| users_rsvp[u.split('#').first] = u.split('#').last } 
         event_users = User.where(username: users_rsvp.keys)
-        event_users.each {|eu| invitations << event.invitations.build(user_id: eu.id, rsvp: Invitation.rsvps[users_rsvp[eu.username]] )} 
+        event_users.each {|eu| @invitations << event.invitations.build(user_id: eu.id, rsvp: Invitation.rsvps[users_rsvp[eu.username]] )} 
       end
-      events << event
+      @events << event
     end
+  end
 
-    invitations.group_by(&:user_id).each do | _ , invites|
+  def update_rsvp_for_overlapping_events
+    @invitations.group_by(&:user_id).each do | _ , invites|
       accepted_invites = invites.reject{|invite| invite.no?}
       (0...accepted_invites.length).each do |index|
         unless index == accepted_invites.length - 1
@@ -35,7 +44,5 @@ class EventImportService
         end
       end
     end
-
-    Event.import events, recursive: true
   end
 end
