@@ -1,7 +1,30 @@
-# This file should contain all the record creation needed to seed the database with its default values.
-# The data can then be loaded with the bin/rails db:seed command (or created alongside the database with db:setup).
-#
-# Examples:
-#
-#   movies = Movie.create([{ name: 'Star Wars' }, { name: 'Lord of the Rings' }])
-#   Character.create(name: 'Luke', movie: movies.first)
+class SeedImporter
+  def initialize(file_base_name)
+    @file_base_name = file_base_name
+    @service_class = nil
+  end
+
+  def run
+    init_service_class
+    @service_class.new(file).import
+  end
+
+  def file
+    File.join(seed_dir, "#{@file_base_name}.csv")
+  end
+
+  def service_class
+    (@file_base_name.singularize + '_import_service').classify
+  end
+
+  def init_service_class
+    @service_class = Object.const_get(service_class)
+  end
+
+  def seed_dir
+    File.dirname(__FILE__) + '/seed_data'
+  end
+end
+
+SeedImporter.new('users').run
+SeedImporter.new('events').run
